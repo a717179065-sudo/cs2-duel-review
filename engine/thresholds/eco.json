@@ -1,0 +1,64 @@
+{
+  "_note": "经济类规则（ECO-01..09、ECO-G1、COST-01）自己的阈值。全起线、强起线、can_force、起狙线在 common.json（C-ECO）。值 = rules_v1 现用值；decisions_v1 #19 只改 ECO-01 (B) 的出不出，不改数值。单位：美元、秒、游戏单位。",
+
+  "_赛制": "半场回合数（MR12）和加时每个半场回合数；用来判断半场最后一回合、同一半场。手枪局 = 每个常规半场第一回合",
+  "half_rounds": 12,
+  "ot_half_rounds": 3,
+
+  "_败方奖励": "输完后的连败计数 1..5 对应的败方奖励（economy.json rules.loss_bonus 实测一致）",
+  "loss_bonus": {"1": 1400, "2": 1900, "3": 2400, "4": 2900, "5": 3400},
+
+  "_ECO-02": "eco 一般花的钱（甲 / 升级手枪）；回合开始连败计数 <= max_k_for_force 时 eco 输了只拿 $1900 或更少；真全起 = 全起线 + comfort（道具钱），低于它只是硬起；买了又退 >= refund_people 人（退的是长枪 / 冲锋枪 / 甲）才写“买了又退”并取退钱时刻；队友退钱 >= refund_min 才算退长枪或甲",
+  "eco_spend": 300,
+  "max_k_for_force": 1,
+  "comfort": 700,
+  "refund_people": 2,
+  "refund_min": 650,
+
+  "_ECO-04": "钱够长枪 = 开局钱 >= 步枪 + 甲 + smg_margin（CT M4A1-S $2900、T AK $2700，甲 $650）；余钱 >= 一把步枪钱（rifle_price）算够给队友发枪",
+  "rifle_price": {"T": 2700, "CT": 2900},
+  "vest_price": 650,
+  "smg_margin": 400,
+
+  "_ECO-06/09": "对面从第 F 回合开始每回合有狙：F 之后本半场 >= awp_share 的回合对面有 AWP；ECO-09 转点后 crash_window 个回合里 >= crash_min_poor 个回合我方 eco 或人均 < 全起线 + comfort",
+  "awp_share": 0.8,
+  "awp_from_min_rounds": 3,
+  "crash_window": 3,
+  "crash_min_poor": 2,
+
+  "_ECO-08": "冻结结束装备总值 >= 本半场到这回合为止 T 方各回合最大值 x equip_frac；开局比分差 <= score_diff_max",
+  "equip_frac": 0.9,
+  "score_diff_max": 1,
+
+  "_ECO-G1": "捡枪后 alone_window_s 秒内，你离最近活着队友 3D > alone_dist 的时间超过 alone_frac 才配“还可以”；每 alone_step_ticks 采样一次",
+  "alone_window_s": 10.0,
+  "alone_dist": 900,
+  "alone_frac": 0.5,
+  "alone_step_ticks": 8,
+
+  "_COST-01": "死前 fire_window_s 秒内开过枪；人数少 alive_diff 个以上（C-ALIVE 死前 0.25 秒）",
+  "fire_window_s": 3.0,
+  "alive_diff": 2,
+  "_chain": "第六轮拍板 5 跨回合经济链（eco.eco_chain，只进经济栏）：上回合输了、倒下的人身上的步枪 / AWP >= chain_lost_min 把（或有 AWP）没保下来，并且这回合 eco / 强起 / 有人钱不够起 AK / M4 加甲（开局钱 < rifle_price + vest_price，只算上回合自己倒下、长枪没保下来的人；页面写“钱不够起 AK / M4 加甲”），才写钱紧；连败补偿拿满按 loss_bonus 最大一档",
+  "chain_lost_min": 2,
+  "awp_pick_r": 250,
+  "awp_pick_after_s": 10,
+  "_awp_pick": "ECO-06 awp_carry：我方倒下的人身上的 AWP，对面在他倒下的地方 awp_pick_r 以内捡起（回合结束后 awp_pick_after_s 秒内也算），下回合拿着它、不是自己买的",
+
+  "_nobuy": "审核单 #22（手册 ECON-C）：全队 buy 在 nobuy_team_buys 里、队友里 >= nobuy_min_mates_long 人主武器是冲锋枪及以上（全队“甲 + 手枪”的半起不算）、你没有主武器也没买长枪，开局钱 >= 步枪 + 甲（rifle_price + vest_price），或 >= 便宜步枪 + 甲（cheap_rifle_price + vest_price）且这回合输了下一档就是 loss_bonus 最大一档 → ECO-04 (c) 写个人买法另一种思路，COST-01 不出。便宜步枪 T Galil $1800、CT 法玛斯 $2050",
+  "nobuy_team_buys": ["全起", "半起"],
+  "nobuy_min_mates_long": 3,
+  "cheap_rifle_price": {"T": 1800, "CT": 2050},
+  "cheap_rifle_name": {"T": "Galil", "CT": "法玛斯"},
+
+  "_them_guess": "审核单 #36（手册 ECON-F）：ECO-04 句尾“对面全起”改成买枪时推得出来的理由：对面上回合赢了 / 对面上回合 eco（我们赢了）/ 对面回合开始的连败计数 >= them_guess_k（输局补偿拿满）；都不成立或对面实际不是全起，用“远处对枪更稳”",
+  "them_guess_k": 5,
+
+  "_carry": "审核单 #33（手册 ECON-I）：跨回合经济链新增两支（eco_chain，只进经济栏、不定责）。chain_saved：上回合输了、这个人活下来，这回合主武器还是那把、不是自己买的、kept >= carry_min_kept；AWP 一直写，步枪只在全队 eco / 强起 / 半起时写。chain_rebuy：上回合输了、这个人倒下时拿着 AWP，这回合自己又买了 AWP，买完余钱 < rifle_price，并且没买头盔，或者有队友拿冲锋枪 / 手枪、开局钱 < 步枪 + 甲 + smg_margin（和 ECO-04 同一条线）",
+  "carry_min_kept": 1000,
+
+  "_赛点": "审核单 #23（手册 ECON-D）：对面赛点（常规 half_rounds 胜、加时每轮 half_rounds + ot_half_rounds×(k+1) 胜的前一分）没有下回合：ECO-01 (C)、ECO-03 不出“还可以先 eco / eco 一回合攒钱”；ECO-02 照出，理由改成对面赛点",
+
+  "_pistols_only": "决定 Q21：对面半起不算反 eco。pistols_only_is_eco = false 时 ECO-06“长枪打手枪被翻”只认 economy buy = eco；改成 true 恢复以前“半起但全员只拿手枪也算 eco”（e6b R16）",
+  "pistols_only_is_eco": false
+}

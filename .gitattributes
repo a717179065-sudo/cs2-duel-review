@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.pkl binary
+*.gz binary
+*.parquet binary
+bench/** -text

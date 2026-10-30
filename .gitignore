@@ -1,0 +1,44 @@
+# demo 和录像：不进仓库
+*.dem
+*.dem.*
+*.mp4
+*.mkv
+*.webm
+*.mov
+*.avi
+*.zst
+*.zip
+*.rar
+*.7z
+*.bz2
+*.part
+videos/
+
+# 每次复盘的产出（examples/ 里的匿名示例除外）
+work/
+report/
+pro/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 本地草稿 / 编辑器
+*_scratch/
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 可选的本地知识库（不随仓库发布）
+mirage_kb.*
+
+# 本地缓存 / 日志 / 环境变量（bench/ 里的对标数据除外）
+*.pkl
+*.csv.gz
+!bench/data/*.csv.gz
+*.log
+.env

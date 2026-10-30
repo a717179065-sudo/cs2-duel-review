@@ -1,0 +1,91 @@
+{
+  "_note": "C-* 口径用的阈值（common.py 读 ctx.th['common']）。值 = rules_v1 common / thresholds_to_decide 的现用值；decisions_v1 没有改动这里的项。单位：游戏单位、秒、度、美元。",
+
+  "tickrate": 64,
+
+  "_halves": "半场切分（事实层 economy 和规则层 common.half 共用）：常规每半场 half_rounds 回合，加时每半场 ot_half_rounds 回合",
+  "half_rounds": 12,
+  "ot_half_rounds": 3,
+
+  "_C-ALIVE": "人数按 player_death 数；某一刻的人数取严格早于、且至少早 alive_lag_s 秒的状态",
+  "alive_lag_s": 0.25,
+
+  "_C-STILL": "开枪那一刻水平速度 <= 这把枪最大速度 x still_frac 算停稳；> run_speed 叫跑着；其余叫还没停稳。开镜的狙用 max_speed_scoped。不开枪时的移动速度 = move_window_ticks 前后两帧的平面位移 / 时间，超过 move_teleport 当作瞬移、记缺失",
+  "still_frac": 0.34,
+  "run_speed": 180,
+  "max_speed_default": 240,
+  "max_speed": {
+    "ak47": 215, "m4a1": 225, "m4a1_silencer": 225, "galilar": 215, "famas": 220, "aug": 220, "sg556": 210,
+    "awp": 200, "ssg08": 230, "g3sg1": 215, "scar20": 215,
+    "mac10": 240, "mp9": 240, "mp7": 220, "mp5sd": 235, "ump45": 230, "p90": 230, "bizon": 240,
+    "glock": 240, "hkp2000": 240, "usp_silencer": 240, "p250": 240, "fiveseven": 240, "tec9": 240, "cz75a": 240,
+    "deagle": 230, "elite": 240, "revolver": 220,
+    "nova": 220, "xm1014": 215, "mag7": 225, "sawedoff": 210, "m249": 195, "negev": 150
+  },
+  "max_speed_scoped": {"awp": 100, "g3sg1": 120, "scar20": 120, "ssg08": 230},
+  "move_window_ticks": 8,
+  "move_teleport": 400,
+
+  "_C-HIT": "开枪后 hit_ticks 个 tick 内（含同一 tick）有这名开枪人打这个人的 player_hurt",
+  "hit_ticks": 3,
+
+  "_C-TARGET": "没打中的枪：开枪方向离对方身体 <= max(target_min_deg, target_half_bodies 个半身宽) 才算在打他；同一串 chain_s 秒内的后续枪按 chain_deg（狙 chain_deg_sniper）接上。半身宽 = atan(half_body_units / 3D 距离)。身体 = 脚上 body_bottom 到眼睛的竖线，取 body_samples 个点",
+  "target_min_deg": 5.0,
+  "target_half_bodies": 3.0,
+  "chain_s": 1.0,
+  "chain_deg": 20.0,
+  "chain_deg_sniper": 8.0,
+  "chain_sniper_s": 3.0,
+  "half_body_units": 16.0,
+  "eye_height": 64.0,
+  "crouch_drop": 18.0,
+  "body_bottom": 10.0,
+  "body_samples": 6,
+
+  "_C-SEEN": "a 对方 spotted_by 里有看的人（取 [tick - seen_a_back_ticks, tick + seen_a_fwd_ticks]，spotted 每 1/8 秒才更新）；b 这一枪打中；c 他 seen_c_s 秒内打中过看的人；d 他 seen_d_s 秒内朝看的人开枪、偏差 < max(seen_d_min_deg, seen_d_half_bodies 半身宽)，且看的人是我方活人里离枪线最近的、或者他这时看得见看的人；e 看的人 seen_e_s 秒内在他的视野里（他 spotted 了看的人），且看的人开枪方向 <= max(seen_e_min_deg, seen_e_half_bodies 半身宽)；f 全服务器 ±seen_f_gap_ticks 内都没有 spotted 记录，开枪方向 < max(seen_f_min_deg, seen_f_half_bodies 半身宽)，且他 ±seen_f_radar_s 秒内上过我方雷达",
+  "seen_a_back_ticks": 4,
+  "seen_a_fwd_ticks": 16,
+  "seen_c_s": 1.0,
+  "seen_d_s": 1.0,
+  "seen_d_min_deg": 1.5,
+  "seen_d_half_bodies": 2.0,
+  "seen_d_spot_ticks": 4,
+  "seen_e_s": 1.0,
+  "seen_e_mode": "he_sees",
+  "_seen_e_mode": "e 的“用户在他的 spotted 里”按 SHOT-01/03 的说明读成“他看得见你”（他 spotted 了用户）= he_sees；viewer_sees = 用户 spotted 了他；either = 两种都算。第 3 场三种读法命中一样",
+  "seen_e_min_deg": 5.0,
+  "seen_e_half_bodies": 3.0,
+  "seen_f_gap_ticks": 16,
+  "seen_f_min_deg": 2.0,
+  "seen_f_half_bodies": 1.5,
+  "seen_f_radar_s": 1.5,
+  "seen_f_blackout_ok": false,
+  "_seen_f_blackout_ok": "true = 原型做法：±seen_f_radar_s 秒内全服务器都没有 spotted 时，不要雷达条件也算 f（第 3 场 SHOT-03 18-51.2 只有这样才命中）；rules_v1 C-SEEN/SHOT-01 写的是 f 必须带雷达条件，默认 false",
+
+  "_C-SMOKE": "3D 视线线段穿过生效中的烟柱：圆柱半径 smoke_radius，高度从起爆点 z + smoke_z_low 到 z + smoke_height；起爆到消散（按 entityid 配对，配不上按 smoke_default_s 秒）",
+  "smoke_radius": 144,
+  "smoke_z_low": 0,
+  "smoke_height": 130,
+  "smoke_default_s": 20,
+
+  "_C-HEAR": "枪声：开枪人离听的人 3D <= hear_shot；就在旁边：3D <= hear_near",
+  "hear_shot": 2000,
+  "hear_near": 600,
+
+  "_C-FIGHT": "上一次对着看得见的人开枪已过去 fight_gap_s 秒以上，或上一个目标已被打死、这一枪真的对着下一个人 = 新交火；同一目标两枪间隔 <= burst_gap_s（狙 burst_gap_sniper_s）算同一串",
+  "fight_gap_s": 0.8,
+  "burst_gap_s": 1.0,
+  "burst_gap_sniper_s": 3.0,
+
+  "_C-ECO": "买法取 economy.json 的 buy；全起线、强起最低线、can_force = 人均开局钱 >= force_avg 且 >= force_n 人够强起最低线（ECO-01 原 $2600，统一成 $2500）",
+  "full_buy": {"T": 3900, "CT": 4400},
+  "awp_need": 5750,
+  "force_min": {"T": 2050, "CT": 2250},
+  "force_avg": 2500,
+  "force_n": 4,
+
+  "_C-RADAR": "我方任一活人出现在敌人的 spotted_by 里 = 上了我方雷达；回看窗口截到本回合冻结结束",
+  "radar_look_s": 15,
+  "reveal_recent_s": 3.0,
+  "_reveal_recent_s": "“露过面”（全队雷达 + 击杀栏，common.hidden_phrase）：最后一次露面离现在不到这么多秒写“刚露过面”，更早的写“露过面之后就没再出现”"
+}

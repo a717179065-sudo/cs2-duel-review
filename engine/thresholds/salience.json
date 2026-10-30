@@ -1,0 +1,17 @@
+{
+  "_note": "第六轮拍板 2：每回合只写值得分析的点（merge._salience，compose 经 info['salience'] 传进去）。一定留：关键时刻（你的阵亡、主要原因、关键一枪）、判到你的责任的问题、总结引用到的回合 / 规则。不写：没挂在阵亡上的你的小问题 / 合理代价；赢下回合里队友自己的问题（keep_mate_problem_won=false）；不亮眼的夸奖。夸奖亮眼 = 击杀是开局首杀、multi_kill_s 秒内 >= multi_kill_n 杀里的一个、你一个人时拿的、拿之前我方不多于对面（扳平 / 扳回人数）、赢下回合的最后一杀；道具类（util_rules）要有看得到的效果（火烧到人、雷打掉血再拿下、拖时间的道具炸到 / 烧到人）；always_good 的规则（弱守评价、带信号的转点 / 挪位、人数劣势保枪）照写；never_good（被打残后退出视线、AWP 击杀后换位）不单独写；捡枪升级只在 eco_pick_buys 的回合写。同一类夸奖（family 相同、否则同一规则）一回合只留最强的一个。命中仍全部在 hits.json",
+  "enabled": true,
+  "kill_match_s": 1.5,
+  "multi_kill_n": 2,
+  "multi_kill_s": 10.0,
+  "keep_mate_problem_won": false,
+  "util_rules": ["UTIL-G1", "UTIL-G2", "UTIL-G3"],
+  "_util_rules": "UTIL-G3 掉血后（trigger=hurt）退出视线改用道具，是对前面那次失误的处理，照写",
+  "always_good": ["POS-06", "TIME-G1", "POST-01"],
+  "never_good": ["POS-G1", "POS-G2"],
+  "_keep_minor": "复核：拉胯的小问题照写——keep_minor_rules（能补没补）；keep_minor_duel_rules 里对枪动作不对、这一枪又没打死他的（facts.killed=false）。其余不影响击杀 / 阵亡 / 人数的小问题、合理代价不写；它们没写出来也不把你的部分抬成打得好（你主导赢下的回合除外）。always_good 里的 TIME-G1：出发前只有击杀栏里那边最后一个守点的阵亡这一种信号时不算亮眼。总结引用的（回合, 一组规则）只保住这组里最强的一个单元。你主导赢下的回合（TEAM-01 功劳是你）里你的击杀算亮眼（主导）",
+  "keep_minor_rules": ["TEAM-05"],
+  "keep_minor_duel_rules": ["SHOT-01", "SHOT-02", "SHOT-05"],
+  "eco_pick_buys": ["eco", "强起", "半起"],
+  "family": {"SHOT-G1": "停稳", "SHOT-G2": "停稳"}
+}

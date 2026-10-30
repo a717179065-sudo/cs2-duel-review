@@ -1,0 +1,480 @@
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 布局：一栏到底的复盘单。顶部比分和回合条（每回合一格） → 整场总结 → 每回合一张卡（左侧裁切小地图，右侧时间线），卡片按回合顺序排 */
+:root {
+  --bg: #eceee9; --surface: #f8f9f6; --sunk: #e3e6e0; --ink: #171b18; --muted: #5b635d; --line: #d2d7cf;
+  --t: #b8701a; --t-soft: #f3e3cc; --ct: #2d6cb5; --ct-soft: #dbe6f3;
+  --win: #2c8655; --win-soft: #d8ecdf; --loss: #c8443a; --loss-soft: #f5dcd9;
+  --land: #cfd4cb; --path-halo: #f8f9f6;
+  --f-display: "Barlow Condensed", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --f-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111412; --surface: #191d1a; --sunk: #222723; --ink: #e7ebe6; --muted: #9aa39c; --line: #2c322e;
+  --t: #e3a050; --t-soft: #3a2a15; --ct: #6aa3e6; --ct-soft: #182a40;
+  --win: #4fb77e; --win-soft: #16301f; --loss: #ec6a5e; --loss-soft: #3a1b18;
+  --land: #2f3631; --path-halo: #191d1a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111412; --surface: #191d1a; --sunk: #222723; --ink: #e7ebe6; --muted: #9aa39c; --line: #2c322e;
+  --t: #e3a050; --t-soft: #3a2a15; --ct: #6aa3e6; --ct-soft: #182a40;
+  --win: #4fb77e; --win-soft: #16301f; --loss: #ec6a5e; --loss-soft: #3a1b18;
+  --land: #2f3631; --path-halo: #191d1a; color-scheme: dark }
+
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--ink); font: 15px/1.65 var(--f-body); }
+.wrap { max-width: 1000px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px }
+h1, h2, h3, h4 { margin: 0; line-height: 1.3; text-wrap: balance }
+p { margin: 0 }
+a { color: inherit }
+button { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--ct); outline-offset: 2px }
+.muted { color: var(--muted) }
+.eyebrow { font: 600 13px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+code, .mono { font-family: var(--f-mono); font-size: 12.5px }
+.num { font-variant-numeric: tabular-nums }
+
+/* 顶部 */
+header { display: grid; gap: 14px }
+.score { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px }
+.score .big { font: 700 64px/1 var(--f-display); letter-spacing: .01em }
+.score .big .sep { color: var(--muted); padding: 0 .12em }
+.score .res { font: 700 22px/1 var(--f-display); color: var(--loss) }
+.score .res.w { color: var(--win) }
+.halves { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted) }
+.halves b { font: 600 17px var(--f-display); color: var(--ink) }
+.halves .ct { color: var(--ct) } .halves .t { color: var(--t) }
+.me { overflow-x: auto }
+.me table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 560px }
+.me th, .me td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap }
+.me th:first-child, .me td:first-child { text-align: left }
+.me th { font-weight: 500; color: var(--muted); font-size: 12px }
+.me tr.me td { font-weight: 700; background: var(--sunk) }
+.me tr.grp td { color: var(--muted); font-size: 12px; padding-top: 10px; border-bottom: 0 }
+.me div { display: grid }
+.me span { font-size: 12px; color: var(--muted); letter-spacing: .04em }
+.me b { font: 600 26px/1.1 var(--f-display) }
+
+.strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 4px }
+.strip a { display: grid; place-items: center; height: 44px; border-radius: 4px; text-decoration: none; position: relative;
+  font: 600 16px var(--f-display); background: var(--loss-soft); color: var(--loss); border-top: 4px solid var(--t) }
+.strip a.w { background: var(--win-soft); color: var(--win) }
+.strip a.ct { border-top-color: var(--ct) }
+.strip a i { position: absolute; bottom: 4px; width: 6px; height: 6px; border-radius: 50% }
+.strip a i.bad { background: var(--loss) } .strip a i.minor { background: var(--t) } .strip a i.good { background: var(--win) } .strip a i.cost { background: var(--muted) }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted) }
+.legend span { display: inline-flex; align-items: center; gap: 6px }
+.legend i { width: 12px; height: 4px; display: inline-block; border-radius: 2px }
+
+/* 整场总结 */
+.summary { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: grid; gap: 20px }
+.summary > h2 { font-size: 23px }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px }
+.cols > div { min-width: 0; display: grid; gap: 12px; align-content: start }
+.blockhead { font: 600 15px var(--f-display); letter-spacing: .08em; color: var(--muted) }
+.issue { display: grid; gap: 4px; padding-left: 12px; border-left: 3px solid var(--loss) }
+.issue.good { border-left-color: var(--win) }
+.issue h3 { font-size: 16px }
+.issue p { font-size: 14px }
+.issue .fix { font-size: 14px }
+.issue .fix b { color: var(--loss) }
+.rlinks { display: flex; flex-wrap: wrap; gap: 4px }
+.rlinks a { font: 600 13px var(--f-display); text-decoration: none; padding: 1px 7px; border-radius: 4px; background: var(--sunk) }
+.rlinks a:hover { background: var(--line) }
+.tp { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; font-size: 14px }
+.tp a { font: 600 15px var(--f-display); text-decoration: none; color: var(--ct) }
+.watch { display: grid; gap: 8px }
+.watch li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 14px }
+.watch ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px }
+.board { overflow-x: auto }
+.board table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 520px }
+.board th, .board td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap }
+.board th:first-child, .board td:first-child { text-align: left }
+.board th { font-weight: 500; color: var(--muted); font-size: 12px }
+.board tr.me td { font-weight: 700 }
+.board tr.grp td { color: var(--muted); font-size: 12px; padding-top: 10px; border-bottom: 0 }
+
+/* 回合卡 */
+.rounds { display: grid; gap: 18px }
+.rcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 14px; scroll-margin-top: 16px }
+.rhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
+.rhead .rn { font: 700 26px/1 var(--f-display) }
+.side { font: 600 13px/1 var(--f-display); letter-spacing: .06em; padding: 4px 8px; border-radius: 4px; background: var(--t-soft); color: var(--t) }
+.side.ct { background: var(--ct-soft); color: var(--ct) }
+.out { font: 600 15px var(--f-display); color: var(--loss) } .out.w { color: var(--win) }
+.rating { margin-left: auto; font-size: 12.5px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted) }
+.rating.good { border-color: var(--win); color: var(--win) } .rating.minor { border-color: var(--t); color: var(--t) } .rating.bad { background: var(--loss); border-color: var(--loss); color: #fff }
+.buy { font-size: 13px; color: var(--muted) }
+.rcard h3 { font-size: 19px }
+.sit { font-size: 14px; color: var(--muted); max-width: 72ch }
+.rbody { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: start }
+@media (max-width: 680px) { .rbody { grid-template-columns: minmax(0, 1fr) } .map { max-width: 360px } }
+.map { display: grid; gap: 6px; min-width: 0 }
+.map svg { width: 100%; height: auto; aspect-ratio: 1; background: var(--sunk); border-radius: 8px; display: block; max-width: 100% }
+.mapkey { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11.5px; color: var(--muted) }
+.mapkey span { display: inline-flex; align-items: center; gap: 4px }
+.story { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0 }
+.story li { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); gap: 10px; font-size: 14.5px }
+.story .ts { font: 600 15px/1.55 var(--f-display); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums }
+.moments { display: grid; gap: 10px }
+.mo { border-radius: 8px; padding: 12px 14px; background: var(--sunk); display: grid; gap: 6px; border-left: 4px solid var(--ink) }
+.mo.bad { border-left-color: var(--loss) } .mo.good { border-left-color: var(--win) }
+.mo .mh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted) }
+.mo .kind { font-weight: 700; color: var(--ink) }
+.mo.bad .kind { color: var(--loss) } .mo.good .kind { color: var(--win) }
+.mo .mt { font: 600 15px var(--f-display); color: var(--ink) }
+.mo .what { font-weight: 500 }
+.mo .better { font-size: 14.5px }
+.mo .better b { font-weight: 700 }
+.mo .ev { font-size: 13px; color: var(--muted) }
+.mo .bl { margin-left: auto; font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line) }
+.mo .bl.self { border-color: var(--loss); color: var(--loss) }
+.mo .bl.both { border-color: var(--loss); color: var(--loss); background: var(--loss-soft) }
+.mo .bl.minor { border-color: var(--t); color: var(--t) }
+.mo .bl.team { color: var(--muted) }
+.mo .bl.cost { color: var(--muted); border-style: dashed }
+.team { font-size: 14px; padding-top: 10px; border-top: 1px solid var(--line) }
+.team b { font-weight: 700 }
+.tags { display: flex; flex-wrap: wrap; gap: 6px }
+.tags span { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted) }
+.strip a.sum { grid-column: span 2; background: var(--sunk); color: var(--ink); border-top-color: var(--ink) }
+.strip a[aria-current] { outline: 2px solid var(--ink); outline-offset: 1px }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.pager button { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 12px; font: 600 15px var(--f-display) }
+.pager button:hover { border-color: var(--muted) }
+.pager .pos { color: var(--muted); font: 500 14px var(--f-display) }
+#rounds { display: grid; gap: 14px }
+.cause { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
+.cc { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0 }
+.cc .lab { font-size: 12.5px; font-weight: 700; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.cc .lab em { font-style: normal; font-weight: 600; font-size: 12px; padding: 0 8px; border-radius: 999px; background: var(--win-soft); color: var(--win) }
+.cc p { font-size: 14.5px }
+.cc.yp.good { border-color: var(--win) } .cc.yp.minor { border-color: var(--t) } .cc.yp.bad { border-color: var(--loss) }
+.econ { border: 1px solid var(--line); border-radius: 8px; background: var(--bg) }
+.econ > summary { cursor: pointer; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 14px }
+.econ .lab { font: 600 13px var(--f-display); letter-spacing: .08em; color: var(--muted) }
+.vd { margin-left: auto; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line) }
+.vd.good { color: var(--win); border-color: var(--win) } .vd.minor { color: var(--t); border-color: var(--t) } .vd.bad { background: var(--loss); border-color: var(--loss); color: #fff }
+.econ dl { margin: 0; padding: 0 12px 10px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; font-size: 14px }
+.econ dt { color: var(--muted); font-size: 13px; white-space: nowrap }
+.econ dd { margin: 0 }
+.chain { display: grid; gap: 8px }
+.chain ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; border-left: 2px solid var(--line); padding-left: 14px }
+.chain li { display: grid; grid-template-columns: 5.2em minmax(0, 1fr); gap: 10px; font-size: 14px; position: relative }
+.chain li::before { content: ""; position: absolute; left: -19px; top: .55em; width: 8px; height: 8px; border-radius: 50%; background: var(--muted) }
+.chain li a { font: 600 15px var(--f-display); text-decoration: none; color: var(--ct) }
+.chain .lesson { font-size: 14.5px; background: var(--loss-soft); border-radius: 8px; padding: 8px 12px }
+.owner { font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); vertical-align: 2px }
+.owner.me { border-color: var(--loss); color: var(--loss) }
+.flow { display: grid; gap: 10px }
+.flow > p { font-size: 15px; max-width: 72ch }
+.flow ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
+.flow li { display: grid; grid-template-columns: 5.4em minmax(0, 1fr); gap: 10px; padding: 8px 12px; border-radius: 8px; background: var(--loss-soft); border-left: 4px solid var(--loss) }
+.flow li.good { background: var(--win-soft); border-left-color: var(--win) }
+.flow li a { font: 600 15px var(--f-display); text-decoration: none; color: var(--loss) }
+.flow li.good a { color: var(--win) }
+.flow li div { display: grid; gap: 2px; font-size: 14px; min-width: 0 }
+.flow li b { font-size: 15px }
+.econ2 { display: grid; gap: 4px; padding: 8px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: 14px }
+.econ2 .lab { font: 600 13px var(--f-display); letter-spacing: .06em; color: var(--muted); margin-right: 10px }
+.ideas { display: grid; gap: 4px; padding: 10px 14px; border-radius: 8px; border: 1px dashed var(--ct) }
+.ideas .lab { font: 600 13px var(--f-display); letter-spacing: .06em; color: var(--ct) }
+.ideas ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: 14.5px }
+.mo .view { font-size: 13.5px; padding: 6px 10px; border-radius: 6px; background: var(--surface) }
+.mo .view span { font: 600 12.5px var(--f-display); letter-spacing: .06em; color: var(--ct); margin-right: 8px }
+.playbtn { justify-self: start; cursor: pointer; border: 1px solid var(--ct); color: var(--ct); background: var(--surface); border-radius: 6px; padding: 3px 12px; font: 600 14px var(--f-display) }
+.playbtn:hover { background: var(--ct-soft) }
+.clipbox { display: grid; gap: 8px }
+.clipview { position: relative; max-width: 560px }
+.clipview svg { width: 100%; height: auto; aspect-ratio: 1; background: var(--bg); border-radius: 8px; display: block; max-width: 100% }
+.feed { position: absolute; top: 8px; right: 8px; margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 12px; max-width: 70% }
+.feed li { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; text-align: right }
+.feed b.ct { color: var(--ct) } .feed b.t { color: var(--t) }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 560px }
+.ctl button { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 3px 10px; font: 600 14px var(--f-display) }
+.ctl input[type=range] { flex: 1 1 160px; min-width: 0; accent-color: var(--ct);
+  background: linear-gradient(90deg, transparent calc(var(--mark) - 1px), var(--loss) calc(var(--mark) - 1px), var(--loss) calc(var(--mark) + 1px), transparent calc(var(--mark) + 1px)) }
+.ctl .tt { font: 600 14px var(--f-display); color: var(--muted); min-width: 5.5em }
+.cliplegend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11.5px; color: var(--muted) }
+.cliplegend span { display: inline-flex; align-items: center; gap: 4px }
+.cliplegend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block }
+.cliplegend i.me { background: var(--surface); border: 2px solid var(--ink) }
+footer { font-size: 12.5px; color: var(--muted); display: grid; gap: 6px; max-width: 80ch }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
+<div class="wrap">
+  <header>
+    <span class="eyebrow" id="eyebrow"></span>
+    <div class="score"><span class="big num" id="big"></span><span class="res" id="res"></span></div>
+    <div class="halves" id="halves"></div>
+    <div class="me" id="me"></div>
+    <nav class="strip" id="strip" aria-label="回合"></nav>
+    <div class="legend"><span><i style="background:var(--ct)"></i>上沿蓝 = 你是 CT</span><span><i style="background:var(--t)"></i>上沿橙 = 你是 T</span><span>底色绿 / 红 = 回合赢 / 输</span><span>小圆点是你这回合的表现：绿 打得好，橙 小问题，红 主要问题，没点 = 没问题</span><span>点格子切到那一回合，键盘 ← → 翻页</span></div>
+  </header>
+
+  <section class="summary" id="summary" aria-label="整场总结"></section>
+
+  <section class="rounds" id="rounds" aria-label="逐回合复盘" hidden>
+    <nav class="pager" id="pagerTop" aria-label="翻页"></nav>
+    <div id="cards"></div>
+    <nav class="pager" id="pagerBottom" aria-label="翻页"></nav>
+  </section>
+
+  <footer>
+    <p>数据来自 demo 文件（demoparser2 解析）。</p>
+    <p>时间是冻结时间结束后的秒数。tick 可以在 CS2 控制台输入 demo_gototick 加数字跳过去回看。地图是这几场所有玩家走过的位置画出来的轮廓，不是官方雷达图。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+(function () {
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const M = DATA.meta, S = DATA.summary, U = DATA.user, R = DATA.rounds;
+  const byRound = new Map(R.map(r => [r.round, r]));
+  const sideCls = s => s === "CT" ? "ct" : "t";
+  const RATE = { "打得好": "good", "正常": "", "有问题": "bad", "合理代价": "cost" };
+  const YP = { "打得好": "good", "没问题": "good", "小问题": "minor", "主要问题": "bad" };
+  const VD = { "买法对": "good", "可以商量": "minor", "买法不对": "bad" };
+  const KIND = { "好": "good", "问题": "bad", "关键": "" };
+  // 每条时刻的责任小标签：你的责任 / 你的责任 + 队友或团队 / 小问题 / 队友或团队 / 合理代价，各一个样式
+  const BL = { "你的责任": "self", "你的责任 + 队友或团队": "both", "小问题": "minor", "队友或团队": "team", "合理代价": "cost" };
+  const blTag = b => b && b !== "—" ? `<span class="bl ${BL[b] || ""}">${esc(b)}</span>` : "";
+  const WPN = { ak47: "AK", m4a1: "M4A4", m4a1_silencer: "M4A1-S", awp: "AWP", galilar: "Galil", famas: "FAMAS", deagle: "沙鹰", usp_silencer: "USP",
+    hkp2000: "P2000", glock: "格洛克", p250: "P250", tec9: "Tec-9", fiveseven: "FN57", cz75a: "CZ75", mp9: "MP9", mac10: "MAC-10", mp7: "MP7",
+    ump45: "UMP", p90: "P90", ssg08: "鸟狙", sg556: "SG553", aug: "AUG", xm1014: "连喷", hegrenade: "雷", inferno: "火", knife: "刀" };
+  const wpn = w => WPN[w] || String(w || "");
+  const CLIPS = DATA.clips || {};
+  const rl = n => `<a href="#r${n}" data-r="${n}">${n}</a>`;
+  const tickBtn = t => `<code>${t}</code>`;
+
+  // ---------- 顶部 ----------
+  const [my, op] = M.score.split(":").map(Number);
+  document.getElementById("eyebrow").textContent = `${M.match_no != null ? `第 ${M.match_no} 场 · ` : ""}${M.map.replace("de_", "").replace(/^./, c => c.toUpperCase())} · ${M.user}${M.match_no == null && M.demo ? ` · ${M.demo}` : ""}`;
+  document.getElementById("big").innerHTML = `${my}<span class="sep">:</span>${op}`;
+  const resEl = document.getElementById("res"); resEl.textContent = my > op ? "赢" : my < op ? "输" : "平"; if (my > op) resEl.classList.add("w");
+  const bs = U.by_side || {};
+  // 先写开局那一边；by_side 只算常规回合，加时另给 overtime
+  const sideOrder = M.start_side === "T" ? ["T", "CT"] : ["CT", "T"];
+  const ot = U.overtime;
+  document.getElementById("halves").innerHTML = sideOrder.filter(s => bs[s] && bs[s].rounds).map(s => `<span class="${sideCls(s)}">${s} 半场 <b class="num">${bs[s].won}:${bs[s].rounds - bs[s].won}</b>　你 ${bs[s].k} 杀 ${bs[s].d} 死</span>`).join("")
+    + (ot && ot.rounds ? `<span>加时 <b class="num">${ot.won}:${ot.rounds - ot.won}</b>　你 ${ot.k} 杀 ${ot.d} 死</span>` : "");
+  document.getElementById("strip").innerHTML = `<a href="#summary" data-r="0" class="sum" title="整场总结">总结</a>` + R.map(r => {
+    const tl = r.tl, w = tl.result === "赢", rc = r.your_part ? YP[r.your_part.level] : RATE[r.rating];
+    return `<a href="#r${r.round}" data-r="${r.round}" class="${w ? "w" : ""} ${sideCls(tl.side)}" title="第 ${r.round} 回合 · ${tl.side} · ${w ? "赢" : "输"} · 你：${esc(r.your_part ? r.your_part.level : r.rating)}：${esc(r.headline)}">${r.round}${rc ? `<i class="${rc}"></i>` : ""}</a>`;
+  }).join("");
+
+  // ---------- 计分板（放在顶部，代替原来的数字卡） ----------
+  const board = DATA.board;
+  document.getElementById("me").innerHTML = `<table><thead><tr><th>玩家</th><th>K</th><th>D</th><th>A</th><th>ADR</th><th>KAST</th><th>爆头率</th><th>首杀 / 首死</th></tr></thead><tbody>${
+    Object.values(board).map((ps, i) => `<tr class="grp"><td colspan="8">${i === 0 ? "我方" : "对方"}</td></tr>` +
+      ps.slice().sort((a, b) => b.adr - a.adr).map(p => `<tr class="${p.is_user ? "me" : ""}"><td>${esc(p.name)}</td><td>${p.k}</td><td>${p.d}</td><td>${p.a}</td><td>${p.adr}</td><td>${p.kast_pct}%</td><td>${p.hs_pct}%</td><td>${p.opening_k} / ${p.opening_d}</td></tr>`).join("")).join("")}</tbody></table>`;
+
+  // ---------- 整场总结：一句话 → 比赛走势 → 缺点 / 优点 ----------
+  const MO = S.momentum || { text: "", points: [] };
+  document.getElementById("summary").innerHTML = `
+    <span class="eyebrow">整场总结</span>
+    <h2>${esc(S.headline)}</h2>
+    ${MO.text || (MO.points || []).length ? `<div class="flow"><span class="blockhead">比赛走势</span>
+      ${MO.text ? `<p>${esc(MO.text)}</p>` : ""}
+      ${(MO.points || []).length ? `<ol>${MO.points.map(x => `<li class="${x.kind === "good" ? "good" : "bad"}"><a href="#r${x.round}" data-r="${x.round}" class="num">第 ${x.round} 回合</a><div><b>${esc(x.title)}</b><span>${esc(x.text)}</span></div></li>`).join("")}</ol>` : ""}
+    </div>` : ""}
+    ${(S.weaknesses || []).length || (S.strengths || []).length ? `<div class="cols">
+      ${(S.weaknesses || []).length ? `<div><span class="blockhead">缺点：可以改进的地方</span>
+        ${S.weaknesses.map(x => `<div class="issue"><h3>${esc(x.title)}${x.who === "团队" ? ` <span class="owner">团队</span>` : ""}</h3><p>${esc(x.text)}</p><div class="rlinks">${x.rounds.map(rl).join("")}</div></div>`).join("")}
+      </div>` : ""}
+      ${(S.strengths || []).length ? `<div><span class="blockhead">优点</span>
+        ${S.strengths.map(x => `<div class="issue good"><h3>${esc(x.title)}</h3><p>${esc(x.text)}</p><div class="rlinks">${x.rounds.map(rl).join("")}</div></div>`).join("")}
+      </div>` : ""}
+    </div>` : ""}`;
+
+  // ---------- 地图：用格子轮廓做遮罩，颜色跟着主题走 ----------
+  const G = DATA.map.grid, cells = DATA.map.cells;
+  const gx0 = Math.min(...cells.map(c => c[0])), gx1 = Math.max(...cells.map(c => c[0])), gy0 = Math.min(...cells.map(c => c[1])), gy1 = Math.max(...cells.map(c => c[1]));
+  const PX = 4, cv = document.createElement("canvas");
+  cv.width = (gx1 - gx0 + 1) * PX; cv.height = (gy1 - gy0 + 1) * PX;
+  const cx = cv.getContext("2d"); cx.fillStyle = "#000"; cx.fillRect(0, 0, cv.width, cv.height); cx.fillStyle = "#fff";
+  for (const [x, y] of cells) cx.fillRect((x - gx0) * PX, (gy1 - y) * PX, PX, PX);
+  const LX = gx0 * G, LY = -(gy1 + 1) * G, LW = (gx1 - gx0 + 1) * G, LH = (gy1 - gy0 + 1) * G;
+  document.getElementById("defs").innerHTML = `<mask id="land" maskUnits="userSpaceOnUse" x="${LX}" y="${LY}" width="${LW}" height="${LH}"><image href="${cv.toDataURL()}" x="${LX}" y="${LY}" width="${LW}" height="${LH}" preserveAspectRatio="none"/></mask>`;
+  const UTIL = { smoke: ["烟", 144, "var(--muted)", .35], flash: ["闪", 60, "var(--ink)", .9], molotov: ["火", 120, "var(--t)", .45], incendiary: ["火", 120, "var(--t)", .45], hegrenade: ["雷", 70, "var(--loss)", .5], he: ["雷", 70, "var(--loss)", .5] };
+  function mapSVG(tl) {
+    const col = tl.side === "CT" ? "var(--ct)" : "var(--t)";
+    const pts = tl.path.map(p => [p[1], -p[2]]);
+    const extra = [...tl.util.map(u => [u[1], -u[2]]), ...tl.kills.map(k => [k[0], -k[1]])];
+    if (tl.death) extra.push([tl.death.xy[0], -tl.death.xy[1]], [tl.death.kxy[0], -tl.death.kxy[1]]);
+    if (tl.plant) extra.push([tl.plant.xy[0], -tl.plant.xy[1]]);
+    const all = pts.concat(extra);
+    let x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0])), y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
+    const side = Math.max(1800, x1 - x0 + 600, y1 - y0 + 600), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const vb = [mx - side / 2, my - side / 2, side, side], k = side / 280;
+    const util = tl.util.map(([kind, x, y, t]) => { const u = UTIL[kind] || ["?", 60, "var(--muted)", .5];
+      return kind === "flash" ? `<path d="M${x} ${-y - 70}L${x + 50} ${-y}L${x} ${-y + 70}L${x - 50} ${-y}Z" fill="var(--surface)" stroke="var(--ink)" stroke-width="${1.5 * k}"><title>闪 · 第 ${t} 秒扔出</title></path>`
+        : `<circle cx="${x}" cy="${-y}" r="${u[1]}" fill="${u[2]}" fill-opacity="${u[3]}"><title>${u[0]} · 第 ${t} 秒扔出</title></circle>`; }).join("");
+    const kills = tl.kills.map(([x, y, t, v, w]) => `<circle cx="${x}" cy="${-y}" r="${5 * k}" fill="var(--surface)" stroke="var(--win)" stroke-width="${2.2 * k}"><title>第 ${t} 秒用 ${esc(wpn(w))} 杀 ${esc(v)}</title></circle>`).join("");
+    const d = tl.death, death = d ? `<line x1="${d.kxy[0]}" y1="${-d.kxy[1]}" x2="${d.xy[0]}" y2="${-d.xy[1]}" stroke="var(--loss)" stroke-width="${1.4 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>
+      <path d="M${d.kxy[0]} ${-d.kxy[1] - 6 * k}L${d.kxy[0] + 5.5 * k} ${-d.kxy[1] + 4 * k}L${d.kxy[0] - 5.5 * k} ${-d.kxy[1] + 4 * k}Z" fill="var(--loss)"><title>凶手 ${esc(d.killer)} · ${esc(d.kplace)} · ${esc(wpn(d.weapon))}</title></path>
+      <g stroke="var(--loss)" stroke-width="${3 * k}" stroke-linecap="round"><line x1="${d.xy[0] - 6 * k}" y1="${-d.xy[1] - 6 * k}" x2="${d.xy[0] + 6 * k}" y2="${-d.xy[1] + 6 * k}"/><line x1="${d.xy[0] + 6 * k}" y1="${-d.xy[1] - 6 * k}" x2="${d.xy[0] - 6 * k}" y2="${-d.xy[1] + 6 * k}"/><title>第 ${d.t} 秒阵亡 · ${esc(d.place)}</title></g>` : "";
+    const plant = tl.plant ? `<rect x="${tl.plant.xy[0] - 6 * k}" y="${-tl.plant.xy[1] - 6 * k}" width="${12 * k}" height="${12 * k}" fill="var(--ink)" transform="rotate(45 ${tl.plant.xy[0]} ${-tl.plant.xy[1]})"><title>第 ${tl.plant.t} 秒下 ${tl.plant.site} 包</title></rect>` : "";
+    const line = pts.map(p => p.join(",")).join(" ");
+    const start = pts[0] ? `<circle cx="${pts[0][0]}" cy="${pts[0][1]}" r="${4.5 * k}" fill="${col}"><title>开局位置</title></circle>` : "";
+    return `<svg viewBox="${vb.join(" ")}" role="img" aria-label="第 ${tl.round} 回合你的走位">
+      <rect x="${LX}" y="${LY}" width="${LW}" height="${LH}" fill="var(--land)" mask="url(#land)"/>
+      ${util}${plant}
+      <polyline points="${line}" fill="none" stroke="var(--path-halo)" stroke-width="${6 * k}" stroke-linejoin="round" stroke-linecap="round"/>
+      <polyline points="${line}" fill="none" stroke="${col}" stroke-width="${2.6 * k}" stroke-linejoin="round" stroke-linecap="round"/>
+      ${start}${kills}${death}</svg>`;
+  }
+
+  // ---------- 回合卡 ----------
+  const nadeName = { Flashbang: "闪", "Smoke Grenade": "烟", "High Explosive Grenade": "雷", "Molotov": "火", "Incendiary Grenade": "火", "Decoy Grenade": "诱饵" };
+  const buyText = b => {
+    const nades = b.nades.map(n => nadeName[n] || n);
+    const counts = {}; nades.forEach(n => counts[n] = (counts[n] || 0) + 1);
+    const kit = [b.primary || b.pistol || "只有手枪", b.armor ? (b.helmet ? "全甲" : "半甲") : "没甲", Object.entries(counts).map(([n, c]) => `${c > 1 ? c : ""}${n}`).join(" ")].filter(Boolean).join(" · ");
+    return `我方 ${esc(b.ours || "—")} vs 对方 ${esc(b.theirs || "—")}　你：${esc(kit)}${b.money != null ? ` · 开局 $${b.money}` : ""}`;
+  };
+  document.getElementById("cards").innerHTML = R.map(r => {
+    const tl = r.tl, w = tl.result === "赢", rc = r.your_part ? YP[r.your_part.level] : RATE[r.rating];
+    const key = `<div class="mapkey"><span><i style="width:12px;height:3px;background:${tl.side === "CT" ? "var(--ct)" : "var(--t)"};display:inline-block"></i>你的走位</span>${tl.kills.length ? `<span style="color:var(--win)">○ 你的击杀</span>` : ""}${tl.death ? `<span style="color:var(--loss)">✕ 阵亡 ▲ 凶手</span>` : ""}${tl.util.length ? `<span>● 你的道具</span>` : ""}${tl.plant ? `<span>◆ 下包</span>` : ""}</div>`;
+    return `<article class="rcard" id="r${r.round}">
+      <div class="rhead"><span class="rn num">第 ${r.round} 回合</span><span class="side ${sideCls(tl.side)}">${tl.side}</span>
+        <span class="muted num">${esc(tl.score)}</span><span class="out ${w ? "w" : ""}">${w ? "赢" : "输"}${tl.reason ? ` · ${esc(tl.reason)}` : ""}</span>
+        <span class="rating ${rc}">你：${esc(r.your_part ? r.your_part.level : r.rating)}</span></div>
+      <p class="buy">${buyText(tl.buy)}</p>
+      <h3>${esc(r.headline)}</h3>
+      <p class="sit">${esc(r.situation)}</p>
+      ${r.main_cause ? `<div class="cause">
+        <div class="cc"><span class="lab">主要原因 · ${esc(r.main_cause.who)}</span><p>${esc(r.main_cause.text)}</p></div>
+        <div class="cc yp ${YP[r.your_part.level] || ""}"><span class="lab">你的部分 · ${esc(r.your_part.level)}${r.main_cause.who !== "你" && !/是你|你和|主要是你|你（/.test(r.main_cause.text || "") && ["没问题", "小问题", "打得好"].includes(r.your_part.level) ? `<em>主要原因不在你</em>` : ""}</span><p>${esc(r.your_part.text)}</p></div>
+      </div>` : ""}
+      ${r.economy && (r.economy.idea || r.economy.swing) ? `<div class="econ2">${r.economy.swing ? `<p><span class="lab">对经济的影响</span>${esc(r.economy.swing)}</p>` : ""}${r.economy.idea ? `<p><span class="lab">另一种买法思路</span>${esc(r.economy.idea)}</p>` : ""}</div>` : ""}
+      <div class="rbody">
+        <div class="map">${mapSVG(tl)}${key}</div>
+        <ol class="story">${r.story.map(s => `<li><span class="ts">${s.t < 0 ? "买枪" : s.t + "s"}</span><span>${esc(s.text)}</span></li>`).join("")}</ol>
+      </div>
+      <div class="moments">${r.moments.map(m => `<div class="mo ${KIND[m.kind] ?? ""}">
+          <div class="mh"><span class="kind">${esc(m.kind === "关键" ? "关键时刻" : m.kind === "好" ? "打得好" : "问题")}</span><span class="mt num">${m.t < 0 ? "买枪时" : m.t + "s"}</span>${tickBtn(m.tick)}${blTag(m.blame)}</div>
+          <p class="what">${esc(m.what)}</p>
+          ${CLIPS[`${r.round}-${+m.t}`] ? `<button type="button" class="playbtn" data-clip="${r.round}-${+m.t}">▶ 回放这一段</button><div class="clipbox" hidden></div>` : ""}
+          ${m.better ? `<p class="better"><b>${m.kind === "好" || m.blame === "—" ? "为什么好：" : "还可以："}</b>${esc(m.better)}</p>` : ""}
+          ${m.also ? `<p class="better"><b>还可以：</b>${esc(m.also)}</p>` : ""}
+          ${m.evidence ? `<p class="ev">${esc(m.evidence)}</p>` : ""}</div>`).join("")}</div>
+      ${r.ideas && r.ideas.length ? `<div class="ideas"><span class="lab">还可以这样打</span><ul>${r.ideas.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      <p class="team"><b>全队：</b>${esc(r.team)}</p>
+      ${r.tags.length ? `<div class="tags">${r.tags.map(t => `<span>${esc(t)}</span>`).join("")}</div>` : ""}
+    </article>`;
+  }).join("");
+
+  // ---------- 2D 回放切片 ----------
+  const NADE = { smoke: [144, "var(--muted)", .45], fire: [130, "var(--t)", .35], flash: [110, "var(--surface)", .9], he: [90, "var(--loss)", .5] };
+  function makeClip(box, clip) {
+    const P = clip.players, F = clip.frames, dt = clip.dt, dur = (F.length - 1) * dt;
+    const pts = F.flatMap(f => f.filter(Boolean).filter(q => q[3]).map(q => [q[0], -q[1]]));
+    clip.events.filter(e => e.x != null).forEach(e => pts.push([e.x, -e.y]));
+    const x0 = Math.min(...pts.map(q => q[0])), x1 = Math.max(...pts.map(q => q[0])), y0 = Math.min(...pts.map(q => q[1])), y1 = Math.max(...pts.map(q => q[1]));
+    const side = Math.max(1600, x1 - x0 + 500, y1 - y0 + 500), cx0 = (x0 + x1) / 2 - side / 2, cy0 = (y0 + y1) / 2 - side / 2, k = side / 420;
+    const idx = Object.fromEntries(P.map((p, i) => [p.id, i]));
+    box.innerHTML = `<div class="clipview"><svg viewBox="${cx0} ${cy0} ${side} ${side}" role="img" aria-label="第 ${clip.round} 回合 2D 回放">
+        <rect x="${LX}" y="${LY}" width="${LW}" height="${LH}" fill="var(--land)" mask="url(#land)"/><g class="nades"></g><g class="lines"></g><g class="ppl"></g></svg>
+        <ol class="feed"></ol></div>
+      <div class="ctl"><button type="button" class="pp">▶ 播放</button><input type="range" min="0" max="${dur}" step="0.01" value="0" aria-label="回放进度">
+        <span class="tt num"></span><button type="button" class="spd" aria-label="播放速度">0.5×</button></div>
+      <p class="cliplegend"><span><i style="background:var(--ct)"></i>CT</span><span><i style="background:var(--t)"></i>T</span><span><i class="me"></i>你</span><span>短线是朝向，黑线是开枪，红线是命中，灰圈烟，橙圈火</span><span>进度条上的红线 = 关键时刻</span></p>`;
+    const svg = box.querySelector("svg"), gN = svg.querySelector(".nades"), gL = svg.querySelector(".lines"), gP = svg.querySelector(".ppl");
+    const feed = box.querySelector(".feed"), rng = box.querySelector("input"), tt = box.querySelector(".tt"), pp = box.querySelector(".pp"), spd = box.querySelector(".spd");
+    rng.style.setProperty("--mark", `${(clip.t - clip.t0) / dur * 100}%`);
+    const pos = (i, T) => {   // 第 i 个人在 T 秒的位置：两帧之间线性插值
+      const f = Math.min(F.length - 1, Math.max(0, T / dt)), a = Math.floor(f), b2 = Math.min(F.length - 1, a + 1), u = f - a, A = F[a][i], B = F[b2][i];
+      if (!A) return null;
+      if (!B || !A[3] || !B[3]) return { x: A[0], y: -A[1], yaw: A[2], alive: A[3] };
+      let dy = B[2] - A[2]; if (dy > 180) dy -= 360; if (dy < -180) dy += 360;
+      return { x: A[0] + (B[0] - A[0]) * u, y: -(A[1] + (B[1] - A[1]) * u), yaw: A[2] + dy * u, alive: 1 };
+    };
+    const nm = id => { const p = P[idx[id]]; return p ? (p.me ? "你" : esc(p.name)) : "?"; };
+    const sc = id => ((P[idx[id]] || {}).side === "CT" ? "ct" : "t");
+    function draw(T) {
+      const ev = clip.events, at = P.map((_, i) => pos(i, T));
+      gN.innerHTML = ev.filter(e => NADE[e.k] && T >= e.s && T < e.s + e.e).map(e => `<circle cx="${e.x}" cy="${-e.y}" r="${NADE[e.k][0]}" fill="${NADE[e.k][1]}" fill-opacity="${NADE[e.k][2]}"${e.k === "flash" ? ` stroke="var(--ink)" stroke-width="${k}"` : ""}/>`).join("");
+      gL.innerHTML = ev.filter(e => e.k === "hit" && T >= e.s && T < e.s + .35 && at[idx[e.a]] && at[idx[e.v]]).map(e => { const a = at[idx[e.a]], v = at[idx[e.v]];
+          return `<line x1="${a.x}" y1="${a.y}" x2="${v.x}" y2="${v.y}" stroke="var(--loss)" stroke-width="${2.2 * k}" stroke-opacity=".85"/>`; }).join("") +
+        ev.filter(e => e.k === "shot" && T >= e.s && T < e.s + .12 && at[idx[e.p]]).map(e => { const a = at[idx[e.p]], r = a.yaw * Math.PI / 180;
+          return `<line x1="${a.x}" y1="${a.y}" x2="${a.x + Math.cos(r) * 46 * k}" y2="${a.y - Math.sin(r) * 46 * k}" stroke="var(--ink)" stroke-width="${1.6 * k}"/>`; }).join("");
+      gP.innerHTML = P.map((p, i) => { const a = at[i]; if (!a) return "";
+        const col = p.side === "CT" ? "var(--ct)" : "var(--t)", rr = (p.me ? 9 : 7) * k;
+        if (!a.alive) return `<g opacity=".45" stroke="${col}" stroke-width="${2.4 * k}" stroke-linecap="round"><line x1="${a.x - 6 * k}" y1="${a.y - 6 * k}" x2="${a.x + 6 * k}" y2="${a.y + 6 * k}"/><line x1="${a.x + 6 * k}" y1="${a.y - 6 * k}" x2="${a.x - 6 * k}" y2="${a.y + 6 * k}"/></g>`;
+        const r = a.yaw * Math.PI / 180;
+        return `<line x1="${a.x}" y1="${a.y}" x2="${a.x + Math.cos(r) * 24 * k}" y2="${a.y - Math.sin(r) * 24 * k}" stroke="${col}" stroke-width="${2.4 * k}" stroke-linecap="round"/>
+          <circle cx="${a.x}" cy="${a.y}" r="${rr}" fill="${col}" stroke="${p.me ? "var(--ink)" : "var(--surface)"}" stroke-width="${(p.me ? 3 : 1.5) * k}"/>
+          <text x="${a.x}" y="${a.y - rr - 4 * k}" font-size="${(p.me ? 15 : 12) * k}" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--surface)" stroke-width="${3 * k}">${p.me ? "你" : esc(p.name.slice(0, 8))}</text>`; }).join("");
+      feed.innerHTML = ev.filter(e => e.k === "kill" && e.s <= T).slice(-4).map(e => `<li><b class="${sc(e.a)}">${nm(e.a)}</b> ${esc(wpn(e.w))}${e.hs ? " 爆头" : ""} <b class="${sc(e.v)}">${nm(e.v)}</b></li>`).join("");
+      tt.textContent = `第 ${(clip.t0 + T).toFixed(1)} 秒`;
+      rng.value = T;
+    }
+    let T = 0, playing = false, rate = .5, last = 0;
+    const loop = now => { if (!playing) return; T += (now - last) / 1000 * rate; last = now;
+      if (T >= dur) { T = dur; playing = false; pp.textContent = "▶ 重播"; } draw(T); if (playing) requestAnimationFrame(loop); };
+    pp.addEventListener("click", () => { if (playing) { playing = false; pp.textContent = "▶ 播放"; return; }
+      if (T >= dur) T = 0; playing = true; pp.textContent = "❚❚ 暂停"; last = performance.now(); requestAnimationFrame(loop); });
+    rng.addEventListener("input", () => { T = +rng.value; draw(T); });
+    spd.addEventListener("click", () => { rate = rate === .5 ? 1 : rate === 1 ? .25 : .5; spd.textContent = `${rate}×`; });
+    draw(0);
+    return { stop: () => { playing = false; pp.textContent = "▶ 播放"; } };
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-clip]");
+    if (!b) return;
+    const box = b.nextElementSibling;
+    box.hidden = !box.hidden;
+    b.textContent = box.hidden ? "▶ 回放这一段" : "收起回放";
+    if (!box.hidden && !box._clip) box._clip = makeClip(box, CLIPS[b.dataset.clip]);
+    if (box.hidden && box._clip) box._clip.stop();
+  });
+
+  // ---------- 分页：0 = 整场总结，n = 第 n 回合 ----------
+  const nums = R.map(r => r.round), sumEl = document.getElementById("summary"), roundsEl = document.getElementById("rounds");
+  const pager = n => {
+    const i = nums.indexOf(n), prev = nums[i - 1], next = nums[i + 1];
+    return `<button type="button" data-go="${prev ?? 0}">${prev ? `← 第 ${prev} 回合` : "← 整场总结"}</button>
+      <span class="pos num">${i + 1} / ${nums.length}</span>
+      ${next ? `<button type="button" data-go="${next}">第 ${next} 回合 →</button>` : `<button type="button" data-go="0">回到整场总结</button>`}`;
+  };
+  let cur = -1;
+  function show(n, scroll = true) {
+    if (n !== 0 && !byRound.has(n)) n = 0;
+    cur = n;
+    sumEl.hidden = n !== 0;
+    roundsEl.hidden = n === 0;
+    document.querySelectorAll(".rcard").forEach(c => { c.hidden = c.id !== `r${n}`; });
+    document.querySelectorAll("#strip a").forEach(a => a.toggleAttribute("aria-current", +a.dataset.r === n));
+    if (n) document.getElementById("pagerTop").innerHTML = document.getElementById("pagerBottom").innerHTML = pager(n);
+    try { history.replaceState(null, "", n ? `#r${n}` : "#summary"); } catch { }
+    if (scroll) document.getElementById("strip").scrollIntoView({ block: "start" });
+  }
+  document.addEventListener("click", e => {
+    const a = e.target.closest("[data-r], [data-go]");
+    if (!a) return;
+    e.preventDefault();
+    show(+(a.dataset.r ?? a.dataset.go));
+  });
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input, textarea") || e.altKey || e.ctrlKey || e.metaKey) return;
+    const i = cur === 0 ? -1 : nums.indexOf(cur);
+    if (e.key === "ArrowRight" && i < nums.length - 1) show(nums[i + 1]);
+    if (e.key === "ArrowLeft" && cur !== 0) show(i > 0 ? nums[i - 1] : 0);
+  });
+  const h = location.hash.match(/^#r(\d+)$/);
+  show(h ? +h[1] : 0, false);
+  window.addEventListener("hashchange", () => { const m = location.hash.match(/^#r(\d+)$/); show(m ? +m[1] : 0); });
+})();
+</script>

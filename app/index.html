@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS2 复盘窗口</title>
+<style>
+/* 本地窗口：放 demo → 10 步进度 → 打开复盘；下面是以前生成的复盘。配色和复盘页一致，不加载任何外部资源 */
+:root {
+  --bg: #eceee9; --surface: #f8f9f6; --sunk: #e3e6e0; --ink: #171b18; --muted: #5b635d; --line: #d2d7cf;
+  --t: #b8701a; --t-soft: #f3e3cc; --ct: #2d6cb5; --ct-soft: #dbe6f3;
+  --win: #2c8655; --win-soft: #d8ecdf; --loss: #c8443a; --loss-soft: #f5dcd9;
+  --f-body: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --f-num: "Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif;
+  --f-mono: ui-monospace, Consolas, "Cascadia Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111412; --surface: #191d1a; --sunk: #222723; --ink: #e7ebe6; --muted: #9aa39c; --line: #2c322e;
+  --t: #e3a050; --t-soft: #3a2a15; --ct: #6aa3e6; --ct-soft: #182a40;
+  --win: #4fb77e; --win-soft: #16301f; --loss: #ec6a5e; --loss-soft: #3a1b18; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111412; --surface: #191d1a; --sunk: #222723; --ink: #e7ebe6; --muted: #9aa39c; --line: #2c322e;
+  --t: #e3a050; --t-soft: #3a2a15; --ct: #6aa3e6; --ct-soft: #182a40;
+  --win: #4fb77e; --win-soft: #16301f; --loss: #ec6a5e; --loss-soft: #3a1b18; color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html { -webkit-text-size-adjust: 100% }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--f-body) }
+.wrap { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; display: grid; gap: 28px }
+h1, h2, h3, p { margin: 0 }
+a { color: inherit }
+button, input { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--ct); outline-offset: 2px }
+.muted { color: var(--muted) }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums }
+.eyebrow { font-size: 12px; letter-spacing: .14em; color: var(--muted) }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px }
+header h1 { font-size: 26px; font-weight: 700; letter-spacing: .02em }
+header h1 .t { color: var(--t) } header h1 .ct { color: var(--ct) }
+header p { color: var(--muted); font-size: 14px }
+
+/* 放 demo 的区域 */
+.drop { position: relative; display: grid; place-items: center; text-align: center; gap: 8px; min-height: 210px; padding: 28px 16px;
+  border: 2px dashed var(--line); border-radius: 14px; background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s }
+.drop:hover { border-color: var(--muted) }
+.drop.over { border-color: var(--ct); background: var(--ct-soft) }
+.drop.busy { cursor: progress }
+.drop .big { font-size: 24px; font-weight: 700 }
+.drop .icon { width: 44px; height: 44px; color: var(--muted) }
+.drop.over .icon { color: var(--ct) }
+.drop small { color: var(--muted); font-size: 13px }
+.up { width: min(420px, 100%); display: grid; gap: 6px; font-size: 13px; color: var(--muted) }
+.bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden }
+.bar i { display: block; height: 100%; width: 0; background: var(--ct); transition: width .2s }
+
+.row { display: grid; grid-template-columns: 1fr 230px; gap: 12px }
+@media (max-width: 640px) { .row { grid-template-columns: 1fr } }
+.field { display: grid; gap: 6px }
+.field label { font-size: 13px; color: var(--muted) }
+.inline { display: flex; gap: 8px }
+input[type=text] { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 14px }
+input[type=text]:focus { border-color: var(--ct); outline: none }
+input.mono { font-family: var(--f-mono); font-size: 13px }
+.btn { flex: none; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); cursor: pointer; white-space: nowrap }
+.btn:hover { border-color: var(--muted) }
+.btn.primary { background: var(--ct); border-color: var(--ct); color: var(--bg); font-weight: 700; text-decoration: none; display: inline-block }
+.msg { font-size: 13px; color: var(--loss); min-height: 1em }
+
+/* 任务卡 */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 16px }
+.card .top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px }
+.card .file { font-weight: 700; word-break: break-all }
+.chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; background: var(--sunk); color: var(--muted); white-space: nowrap }
+.chip.running { background: var(--ct-soft); color: var(--ct) }
+.chip.done { background: var(--win-soft); color: var(--win) }
+.chip.failed { background: var(--loss-soft); color: var(--loss) }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px }
+.stages li { display: grid; grid-template-columns: 22px 92px 1fr auto; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 6px; font-size: 14px }
+.stages li.running { background: var(--ct-soft) }
+.stages li.failed { background: var(--loss-soft) }
+.stages .lab { font-weight: 500 }
+.stages .note { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.stages li.failed .note { color: var(--loss); white-space: normal }
+.stages .sec { color: var(--muted); font-size: 13px }
+.dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); justify-self: center; position: relative }
+li.done .dot { background: var(--win); border-color: var(--win) }
+li.skip .dot { background: transparent; border-color: var(--win) }
+li.done .dot::after, li.skip .dot::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) }
+li.skip .dot::after { border-color: var(--win) }
+li.running .dot { border-color: var(--ct); border-right-color: transparent; animation: spin .9s linear infinite }
+li.failed .dot { background: var(--loss); border-color: var(--loss) }
+li.failed .dot::after { content: "×"; position: absolute; inset: -4px 0 0; text-align: center; color: #fff; font-size: 14px; font-weight: 700; line-height: 16px }
+@keyframes spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { li.running .dot { animation: none; border-right-color: var(--ct) } }
+@media (max-width: 520px) {
+  .stages li { grid-template-columns: 22px 1fr auto; grid-template-areas: "dot lab sec" ". note note"; row-gap: 0 }
+  .stages .dot { grid-area: dot } .stages .lab { grid-area: lab } .stages .sec { grid-area: sec } .stages .note { grid-area: note }
+  .stages li.wait .note:empty { display: none } }
+.err { padding: 10px 12px; border-radius: 8px; background: var(--loss-soft); color: var(--loss); font-size: 14px; word-break: break-word }
+.foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px }
+
+.sec-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px }
+.sec-h h2 { font-size: 17px; white-space: nowrap }
+.jobs { display: flex; flex-wrap: wrap; gap: 6px }
+.jobs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.jobs button.sel { border-color: var(--ct); color: var(--ct) }
+
+/* 历史复盘 */
+.reports { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px }
+.rep { display: grid; gap: 6px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; transition: border-color .15s }
+.rep:hover { border-color: var(--muted) }
+.rep .l1 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted) }
+.rep .score { font: 700 30px/1 var(--f-num); letter-spacing: .01em }
+.rep .res { font-weight: 700; font-size: 15px; margin-left: 8px; color: var(--loss) }
+.rep .res.w { color: var(--win) } .rep .res.d { color: var(--muted) }
+.rep .halves { display: flex; gap: 12px; font-size: 13px }
+.rep .halves .ct { color: var(--ct) } .rep .halves .t { color: var(--t) }
+.empty { padding: 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 12px; font-size: 14px }
+footer { font-size: 12px; color: var(--muted) }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <span class="eyebrow">CS2 · MIRAGE · DEMO 复盘</span>
+      <h1>复盘<span class="ct">窗</span><span class="t">口</span></h1>
+    </div>
+    <p>放一个 Mirage demo 进来，填好要复盘的玩家 steamid，跑完 10 步就生成一页复盘。任何一场 Mirage 都能直接复盘。</p>
+  </header>
+
+  <section aria-label="放 demo">
+    <div class="drop" id="drop" role="button" tabindex="0" aria-describedby="dropHint">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+      <div class="big">把 demo 拖到这里</div>
+      <small id="dropHint">或者点这里选文件 · 支持 .dem / .dem.gz / .dem.zst / .dem.bz2 · 目前只支持 Mirage</small>
+      <div class="up" id="up" hidden>
+        <div class="bar"><i id="upBar"></i></div>
+        <span id="upText" class="num"></span>
+      </div>
+    </div>
+    <input type="file" id="file" accept=".dem,.gz,.zst,.bz2" multiple hidden>
+  </section>
+
+  <section class="row" aria-label="其他放法">
+    <div class="field">
+      <label for="path">或者粘贴本机路径（不用上传，直接用这个文件）</label>
+      <div class="inline">
+        <input type="text" id="path" class="mono" placeholder="D:\demos\1-xxxxxxxx-....dem" spellcheck="false" autocomplete="off">
+        <button type="button" class="btn" id="usePath">用这个文件</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="user">复盘谁（steamid，17 位数字）</label>
+      <input type="text" id="user" class="mono" inputmode="numeric" maxlength="17" spellcheck="false" autocomplete="off">
+    </div>
+  </section>
+  <p class="msg" id="msg" role="alert"></p>
+
+  <section id="jobSec" hidden aria-live="polite">
+    <div class="sec-h"><h2>当前任务</h2><div class="jobs" id="jobs"></div></div>
+    <div class="card" id="card" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>以前的复盘</h2><span class="muted" id="repCount" style="font-size:13px"></span>
+      <label class="muted" style="font-size:13px"><input type="checkbox" id="onlyMe" checked> 只看这个 steamid</label></div>
+    <div class="reports" id="reports" style="margin-top:10px"></div>
+  </section>
+
+  <footer>只在本机运行（127.0.0.1），demo 不会上传到任何外部服务器。上传的文件存在 work\_uploads。</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let DEFAULT_USER = "";                       // 从 /api/config 取（engine/config.py），页面里不写死
+  const EXTS = [".dem", ".dem.gz", ".dem.zst", ".dem.bz2"];
+  const okName = n => EXTS.some(e => n.toLowerCase().endsWith(e));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 无痕模式等 */ } }
+  };
+  const msg = t => { $("msg").textContent = t || ""; };
+
+  // ---------- steamid：记在本机浏览器里 ----------
+  const userEl = $("user");
+  userEl.value = store.get("cs2review.user") || "";
+  fetch("/api/config", { cache: "no-store" }).then(r => r.json()).then(c => {
+    DEFAULT_USER = c.default_user || "";
+    if (!userEl.value) { userEl.value = DEFAULT_USER; loadReports(); }
+  }).catch(() => {});
+  userEl.addEventListener("change", () => {
+    const v = userEl.value.trim();
+    if (/^\d{17}$/.test(v)) { store.set("cs2review.user", v); msg(""); loadReports(); } else msg("steamid 应该是 17 位数字");
+  });
+  const getUser = () => {
+    const v = userEl.value.trim();
+    if (!/^\d{17}$/.test(v)) { msg("steamid 应该是 17 位数字"); userEl.focus(); return null; }
+    store.set("cs2review.user", v);
+    return v;
+  };
+
+  // ---------- 上传 ----------
+  const drop = $("drop"), fileEl = $("file");
+  let uploading = false;
+  const mb = n => (n / 1048576).toFixed(n >= 1048576 * 100 ? 0 : 1);
+  function upload(file, user) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload");
+      xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+      xhr.setRequestHeader("X-User", user);
+      if (file.lastModified) xhr.setRequestHeader("X-Last-Modified", String(file.lastModified));
+      const t0 = performance.now();
+      xhr.upload.onprogress = e => {
+        if (!e.lengthComputable) return;
+        const p = e.loaded / e.total, s = (performance.now() - t0) / 1000;
+        $("upBar").style.width = (p * 100).toFixed(1) + "%";
+        $("upText").textContent = `上传 ${file.name}：${mb(e.loaded)} / ${mb(e.total)} MB` + (s > 1 && p < 1 ? ` · 还要约 ${Math.ceil(s / p - s)} 秒` : "");
+      };
+      xhr.onload = () => {
+        let r = {};
+        try { r = JSON.parse(xhr.responseText); } catch (e) { /* 非 JSON */ }
+        if (xhr.status === 200 && r.job) resolve(r); else reject(new Error(r.error || `上传失败（${xhr.status}）`));
+      };
+      xhr.onerror = () => reject(new Error("上传失败：连不上窗口服务，确认它还在运行"));
+      xhr.onabort = () => reject(new Error("上传取消了"));
+      xhr.send(file);
+    });
+  }
+  async function takeFiles(list) {
+    if (uploading) return;
+    const files = [...list];
+    if (!files.length) return;
+    const bad = files.filter(f => !okName(f.name));
+    if (bad.length) { msg(`只收 ${EXTS.join(" / ")} 文件：${bad.map(f => f.name).join("、")}`); return; }
+    const user = getUser(); if (!user) return;
+    msg(""); uploading = true; drop.classList.add("busy"); $("up").hidden = false;
+    try {
+      for (const f of files) {
+        $("upBar").style.width = "0";
+        const r = await upload(f, user);
+        selectJob(r.job, true);
+      }
+      $("upText").textContent = "上传完成，开始复盘";
+    } catch (e) {
+      msg(e.message); $("up").hidden = true;
+    } finally {
+      uploading = false; drop.classList.remove("busy"); fileEl.value = "";
+      setTimeout(() => { if (!uploading) $("up").hidden = true; }, 2500);
+    }
+  }
+  drop.addEventListener("click", () => { if (!uploading) fileEl.click(); });
+  drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!uploading) fileEl.click(); } });
+  fileEl.addEventListener("change", () => takeFiles(fileEl.files));
+  // 整个窗口都拦住拖放，免得没放准时浏览器把 demo 当网页打开
+  ["dragover", "drop"].forEach(t => window.addEventListener(t, e => e.preventDefault()));
+  let depth = 0;
+  drop.addEventListener("dragenter", e => { e.preventDefault(); depth++; drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; drop.classList.remove("over"); } });
+  drop.addEventListener("drop", e => { e.preventDefault(); depth = 0; drop.classList.remove("over"); takeFiles(e.dataTransfer.files); });
+
+  // ---------- 本机路径 ----------
+  async function usePath() {
+    const p = $("path").value.trim().replace(/^"(.*)"$/, "$1");
+    if (!p) { msg("先粘贴 demo 的完整路径"); return; }
+    const user = getUser(); if (!user) return;
+    try {
+      const r = await fetch("/api/local", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: p, user }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `出错了（${r.status}）`);
+      msg(""); $("path").value = ""; selectJob(j.job, true);
+    } catch (e) { msg(e.message === "Failed to fetch" ? "连不上窗口服务，确认它还在运行" : e.message); }
+  }
+  $("usePath").addEventListener("click", usePath);
+  $("path").addEventListener("keydown", e => { if (e.key === "Enter") usePath(); });
+
+  // ---------- 任务进度 ----------
+  const STATUS = { queued: "排队中", running: "进行中", done: "完成", failed: "失败" };
+  const STAGE_NOTE = { wait: "", skip: "没有变化，沿用上次结果" };
+  let cur = null, curData = null, gotAt = 0, timer = null, jobsList = [];
+  // 卡片只在任务内容变了时重画：跑完 / 失败的任务不再变，一直重画会把焦点从“换成谁”“打开复盘”按钮上拿走、选中的字也会丢
+  let lastCard = "";
+  const fmtSec = s => s == null ? "" : s < 60 ? `${s.toFixed(1)} 秒` : `${Math.floor(s / 60)} 分 ${Math.round(s % 60)} 秒`;
+
+  function renderCard() {
+    const j = curData; if (!j) return;
+    const live = j.status === "running" ? (performance.now() - gotAt) / 1000 : 0;
+    const st = j.stages.map(s => {
+      const sec = s.status === "running" ? (s.sec || 0) + live : s.sec;
+      const note = s.message || STAGE_NOTE[s.status] || (s.status === "running" ? "正在跑……" : "");
+      return `<li class="${s.status}"><span class="dot" aria-hidden="true"></span><span class="lab">${esc(s.label)}</span>
+        <span class="note" title="${esc(note)}">${esc(note)}</span><span class="sec num">${s.status === "wait" ? "" : esc(fmtSec(sec))}</span></li>`;
+    }).join("");
+    const total = j.status === "running" ? (j.elapsed || 0) + live : null;
+    $("card").innerHTML = `
+      <div class="top">
+        <div><span class="file">${esc(j.name)}</span> <span class="chip ${j.status}">${STATUS[j.status] || j.status}</span></div>
+        <span class="muted num" style="font-size:13px">${j.demo_id ? `id ${esc(j.demo_id)} · ` : ""}${j.user ? `steamid ${esc(j.user)} · ` : ""}${esc(j.created)}${total != null ? ` · 已用 ${esc(fmtSec(total))}` : ""}</span>
+      </div>
+      <ol class="stages" aria-label="${j.stages.length} 个步骤">${st}</ol>
+      ${j.status === "failed" && j.error ? `<div class="err">${esc(j.error)}${pickList(j)}</div>` : ""}
+      ${j.status === "done" || j.report_url ? `<div class="foot">${j.report_url ? `<a class="btn primary" href="${esc(j.report_url)}" target="_blank" rel="noopener">打开复盘</a>` : ""}
+        <span class="muted" style="font-size:13px">${j.status === "done" ? `开始 ${esc(j.started || "")}，结束 ${esc(j.finished || "")}` : ""}</span></div>` : ""}`;
+  }
+  // 用户不在 demo 里：报错里带了"demo 里的玩家：名（steamid）；……"，做成按钮，点一下换成这个人重新排队
+  function pickList(j) {
+    const m = /demo 里的玩家：(.*)$/.exec(j.error || "");
+    if (!m) return "";
+    const ps = [...m[1].matchAll(/([^；]+?)（(\d{17})）/g)].map(x => [x[1].trim(), x[2]]);
+    if (!ps.length) return "";
+    return `<div class="foot" style="flex-wrap:wrap;gap:6px;margin-top:8px"><span class="muted" style="font-size:13px">换成谁：</span>${
+      ps.map(([n, s]) => `<button type="button" class="btn" data-rerun="${esc(j.id)}" data-sid="${esc(s)}" title="${esc(s)}">${esc(n)}</button>`).join("")}</div>`;
+  }
+  $("card").addEventListener("click", async e => {
+    const b = e.target.closest("button[data-rerun]"); if (!b) return;
+    userEl.value = b.dataset.sid; store.set("cs2review.user", b.dataset.sid); loadReports();
+    try {
+      const r = await fetch("/api/rerun", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: b.dataset.rerun, user: b.dataset.sid }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `出错了（${r.status}）`);
+      msg(""); selectJob(j.job, true);
+    } catch (err) { msg(err.message === "Failed to fetch" ? "连不上窗口服务，确认它还在运行" : err.message); }
+  });
+  // 任务复盘的是谁：解析出来以后用玩家名，之前用 steamid 末 4 位（同一个 demo 换人重跑的几个任务要分得开）
+  let lastJobs = "";
+  const whoOf = j => j.player || (j.user ? `…${String(j.user).slice(-4)}` : "");
+  function renderJobs() {
+    const html = jobsList.slice(0, 8).map(j => {
+      const who = whoOf(j), lab = `${STATUS[j.status] || ""} · ${j.name}${who ? ` · ${who}` : ""}`;
+      return `<button type="button" data-job="${esc(j.id)}" class="${j.id === cur ? "sel" : ""}" title="${esc(lab)}${j.user ? ` · steamid ${esc(j.user)}` : ""}">${esc(lab)}</button>`;
+    }).join("");
+    if (html !== lastJobs) { lastJobs = html; $("jobs").innerHTML = html; }     // 没变就不重画，焦点留在原来的按钮上
+  }
+  $("jobs").addEventListener("click", e => { const b = e.target.closest("button[data-job]"); if (b) selectJob(b.dataset.job, false); });
+
+  async function poll() {
+    clearTimeout(timer);
+    if (!cur) return;
+    let next = 2000;
+    try {
+      const r = await fetch(`/api/jobs/${cur}`, { cache: "no-store" });
+      if (r.ok) {
+        const j = await r.json();
+        const was = curData && curData.id === j.id ? curData.status : null;
+        const { elapsed, ...rest } = j;                  // elapsed 每次都不一样，不算“变了”
+        const sig = JSON.stringify(rest);
+        curData = j; gotAt = performance.now(); $("jobSec").hidden = false;
+        if (sig !== lastCard) { lastCard = sig; renderCard(); }
+        if (j.status === "queued" || j.status === "running") next = 800;
+        else next = null;                                // 跑完 / 失败：不再轮询（换任务、重跑时 selectJob 会重新开始）
+        if (was && was !== j.status) { loadJobs(); if (j.status === "done") loadReports(); }
+      }
+    } catch (e) { next = 3000; }
+    if (next != null) timer = setTimeout(poll, next);
+  }
+  function selectJob(id, fresh) {
+    cur = String(id); store.set("cs2review.job", cur); lastCard = "";
+    if (fresh) loadJobs();
+    renderJobs(); poll();
+  }
+  async function loadJobs() {
+    try {
+      const r = await fetch("/api/jobs", { cache: "no-store" });
+      jobsList = (await r.json()).jobs || [];
+    } catch (e) { return; }
+    if (!cur && jobsList.length) {
+      const active = jobsList.find(j => j.status === "running" || j.status === "queued");
+      const remembered = jobsList.find(j => j.id === store.get("cs2review.job"));
+      selectJob((active || remembered || jobsList[0]).id, false);
+    }
+    renderJobs();
+  }
+  // 正在跑的那一步，计时在两次轮询之间也往前走
+  setInterval(() => { if (curData && curData.status === "running") renderCard(); }, 250);
+  // 别的地方（另一个标签页）放进来的任务也能看到
+  setInterval(loadJobs, 5000);
+
+  // ---------- 以前的复盘 ----------
+  const MAPS = { de_mirage: "Mirage" };
+  async function loadReports() {
+    let list = [];
+    const u = userEl.value.trim(), only = $("onlyMe").checked && /^\d{17}$/.test(u);
+    try { list = (await (await fetch("/api/reports" + (only ? `?user=${u}` : ""), { cache: "no-store" })).json()).reports || []; } catch (e) { return; }
+    $("repCount").textContent = list.length ? `${list.length} 场` : "";
+    $("reports").innerHTML = list.length ? list.map(r => {
+      const res = r.result === "赢" ? "w" : r.result === "平" ? "d" : "";
+      const h = r.halves || {};
+      const half = s => h[s] ? `<span class="${s.toLowerCase()}">${s} 半场 <b class="num">${h[s].won}:${h[s].lost}</b></span>` : "";
+      const ot = r.overtime ? `<span>加时 <b class="num">${r.overtime.won}:${r.overtime.lost}</b></span>` : "";
+      const order = r.start_side === "T" ? ["T", "CT"] : ["CT", "T"];
+      const when = r.date || r.file_date || "";
+      return `<a class="rep" href="${esc(r.url)}" target="_blank" rel="noopener">
+        <div class="l1"><span>${esc(MAPS[r.map] || r.map)}${r.match_no != null ? ` · 第 ${esc(r.match_no)} 场` : ""}${r.legacy ? " · 旧版" : ""}</span><span class="num">${esc(when)}</span></div>
+        <div><span class="score">${esc(String(r.score).replace(":", " : "))}</span><span class="res ${res}">${esc(r.result || "")}</span></div>
+        <div class="halves">${order.map(half).join("")}${ot}</div>
+        <div class="l1"><span>${esc(r.user || "")}</span><span class="num">${esc(r.demo || r.id || "")}</span></div></a>`;
+    }).join("") : `<div class="empty">${only ? "这个 steamid 还没有复盘。放一个 demo 进来试试。" : "还没有复盘。放一个 demo 进来试试。"}</div>`;
+  }
+  $("onlyMe").addEventListener("change", loadReports);
+
+  loadJobs(); loadReports();
+})();
+</script>
+</body>
+</html>
